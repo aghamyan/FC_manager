@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ParticipantStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id              String                  @id @default(cuid())
+  email           String                  @unique
+  displayName     String
+  passwordHash    String
+  role            Role                    @default(USER)
+  emailVerified   DateTime?
+  image           String?
+  matchesCreated  Match[]                 @relation("MatchCreator")
+  matchesApproved Match[]                 @relation("MatchApprover")
+  tournaments     Tournament[]            @relation("TournamentOrganizer")
+  participants    TournamentParticipant[]
+  accounts        Account[]
+  sessions        Session[]
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+}
+
+model Tournament {
+  id           String                  @id @default(cuid())
+  name         String
+  description  String?
+  startDate    DateTime
+  endDate      DateTime?
+  location     String
+  organizer    User                    @relation("TournamentOrganizer", fields: [organizerId], references: [id])
+  organizerId  String
+  matches      Match[]
+  participants TournamentParticipant[]
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+}
+
+model Match {
+  id           String      @id @default(cuid())
+  homeTeam     String
+  awayTeam     String
+  scheduledAt  DateTime
+  location     String
+  score        String?
+  approved     Boolean     @default(false)
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id])
+  tournamentId String?
+  createdBy    User        @relation("MatchCreator", fields: [createdById], references: [id])
+  createdById  String
+  approvedBy   User?       @relation("MatchApprover", fields: [approvedById], references: [id])
+  approvedById String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([tournamentId])
+  @@index([createdById])
+}
+
+model TournamentParticipant {
+  id           String             @id @default(cuid())
+  tournament   Tournament         @relation(fields: [tournamentId], references: [id])
+  tournamentId String
+  user         User               @relation(fields: [userId], references: [id])
+  userId       String
+  status       ParticipantStatus  @default(PENDING)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@unique([tournamentId, userId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
